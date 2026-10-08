@@ -2,16 +2,12 @@
 
 [![testes](https://github.com/BrunoMaia23/recalculo-com-replica/actions/workflows/testes.yml/badge.svg)](https://github.com/BrunoMaia23/recalculo-com-replica/actions/workflows/testes.yml)
 
-Um número precisa ser recalculado todo dia em dois bancos: primeiro no transacional, onde estão os
-lançamentos, e depois no analítico, que recebe as tabelas por replicação e soma por caso. Se o segundo
-passo roda antes de a réplica chegar, ele soma em cima dos dados de ontem e grava um total errado que
-parece certo. Foi um projeto do time em que eu trabalhei; este repositório refaz a ideia do zero, com
-nomes genéricos (item, caso, retenção), SQLite e uma replicação simulada.
-
-*In English: a daily recalculation across a source database and an analytics database linked by
-replication. It waits until the replica provably matches the source (batch marker, row count and sum)
-before computing anything, sums distinct items so a duplicated item is not counted twice, validates the
-result, and refuses to run on a stale replica. Synthetic data.*
+Um número precisa ser recalculado todo dia em dois bancos: primeiro no transacional (lá, Oracle), onde
+estão os lançamentos, e depois no analítico (lá, PostgreSQL), que recebe as tabelas por replicação e
+soma por caso. Se o segundo passo roda antes de a réplica chegar, ele soma em cima dos dados de ontem e
+grava um total errado que parece certo. Foi um projeto do time em que eu trabalhei, rodando como uma DAG
+diária do Airflow. Para mostrar aqui, troquei os nomes por genéricos (item, caso, retenção) e simulei a
+replicação entre dois SQLite.
 
 ## Os quatro passos
 
@@ -26,7 +22,7 @@ result, and refuses to run on a stale replica. Synthetic data.*
 4. **Validação.** Nenhum caso sem total, todo total igual à soma dos seus itens distintos, aviso para
    item de caso que não tem valor na réplica, e erro se a origem mudou enquanto o processo rodava.
 
-## A demo
+## Três dias
 
 ```bash
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
@@ -34,8 +30,7 @@ pip install -e ".[dev]"
 python -m recalculo demo
 ```
 
-Três dias: no primeiro a replicação atrasa e o recálculo espera; no segundo ela para de vez; no terceiro
-ela volta.
+No primeiro dia a replicação atrasa e o recálculo espera; no segundo ela para de vez; no terceiro volta.
 
 ```
 [dados]       200 itens com retenções na origem; 40 casos no analítico, 10 deles com um item repetido
@@ -59,15 +54,5 @@ ela volta.
 [validação]   OK
 ```
 
-Os tempos de espera variam um pouco de uma execução para outra.
-
-## No projeto real
-
-A origem é Oracle e o analítico é PostgreSQL, ligados por uma replicação que roda o tempo todo. O
-processo é uma DAG diária do Airflow, e cada passo também pode ser rodado à mão.
-
-## Testes
-
-`pytest` cobre o recálculo na origem com a linha de controle, a espera que termina quando a réplica
-chega, a que estoura o prazo, a marca que chega antes dos dados, o total por itens distintos (contra o
-JOIN direto), a validação e o item sem valor.
+Os tempos de espera variam um pouco de uma execução para outra. Os testes cobrem também o caso mais
+traiçoeiro, que a demo não mostra: a marca chega à réplica antes dos dados.
